@@ -46,28 +46,29 @@ dist_glut1 = []
 dist_glut2 = []
 for i in range(len(mover_coord)):
     curr_dist = distance.cdist(mover_coord[i],trans_coord[i])
-    curr_min_dist = np.zeros(curr_dist.shape[1])
-    for j in range(curr_dist.shape[1]):
-        curr_min_dist[j] = np.min(curr_dist[:,i])
+    curr_min_dist = np.zeros(curr_dist.shape[0])
+    for j in range(curr_dist.shape[0]):
+        curr_min_dist[j] = np.min(curr_dist[i,:])
     if i < files_per_batch:
-        dist_gat.append(np.median(curr_min_dist))        
+        dist_gat.append(np.mean(curr_min_dist))        
     elif files_per_batch <= i and i < files_per_batch*2:
-        dist_glut1.append(np.median(curr_min_dist)) 
+        dist_glut1.append(np.mean(curr_min_dist)) 
     else:
-        dist_glut2.append(np.median(curr_min_dist))       
+        dist_glut2.append(np.mean(curr_min_dist))       
 
 dist_gat = np.array(dist_gat)
 dist_glut1 = np.array(dist_glut1)
 dist_glut2 = np.array(dist_glut2)
 
-plt.figure('Histograms')
+plt.figure('Histograms mean')
 plt.hist(dist_gat)
 plt.hist(dist_glut1)
 plt.hist(dist_glut2)
 
-plt.figure('Boxplots_swapped')
+plt.figure('Boxplots mean')
 plt.boxplot((dist_gat,dist_glut1,dist_glut2))
 
+#%% Statistical tests
 # Normality test
 p_norm = np.zeros(3)
 s,p_norm[0] = stats.normaltest(dist_gat)
@@ -90,7 +91,7 @@ D,p_glut1_gat = stats.ks_2samp(mover_min_dist_glut1,mover_min_dist_gat)
 D,p_gat_glut2 = stats.ks_2samp(mover_min_dist_gat,mover_min_dist_glut2)
 
 #%% plot example images with local maxima overlaid
-im_number = 15   # vGAT: 0-17, vGluT1: 18-35, vGluT2: 36-54
+im_number = 18   # vGAT: 0-17, vGluT1: 18-35, vGluT2: 36-54
 
 plt.figure('Raw Mover image')
 plt.imshow(mover_im[:,:,im_number],cmap = 'gray')
