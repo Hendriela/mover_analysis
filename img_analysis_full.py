@@ -6,14 +6,15 @@ from skimage.feature import peak_local_max
 from scipy import stats
 import os
 
-root = r'C:\Users\Hendrik\Desktop\Studium\Master\Lab_rotations\Dresbach\analysis\Confocal'
+root = r'D:\Studium\Master\Lab_rotations\Dresbach\analysis\Confocal'
+#root = r'C:\Users\Hendrik\Desktop\Studium\Master\Lab_rotations\Dresbach\analysis\Confocal'
 files_per_batch = 18
 
 # load mover/transporter images
 dirnames = os.listdir(root)
 ndirs = len(dirnames)
 mover_im = np.zeros((1024,1024,files_per_batch*3))
-transp_im = mover_im.copy()
+trans_im = mover_im.copy()
 for i in range(ndirs):
     filenames = os.listdir(os.path.join(root,dirnames[i]))
     nfiles = len(filenames)
@@ -26,116 +27,75 @@ for i in range(ndirs):
         for k in range(nfiles):
             curr_file = os.path.join(root,dirnames[i],filenames[k])
             curr_im = np.array(Image.open(curr_file))
-            transp_im[:,:,int(i/2)*files_per_batch+k] = curr_im
+            trans_im[:,:,int(i/2)*files_per_batch+k] = curr_im
 
-'''
-# load images in dictionary
-dirnames = os.listdir(root)
-ndirs = len(dirnames)
-coord_dict = {}
-for i in range(ndirs):
-    filenames = os.listdir(os.path.join(root,dirnames[i]))
-    nfiles = len(filenames)
-    coord_dict[dirnames[i]]=np.zeros((1024,1024,nfiles))
-    for j in range(nfiles):
-        curr_file = os.path.join(root,dirnames[i],filenames[j])
-        curr_im = np.array(Image.open(curr_file))
-        curr_coord
-        coord_dict[dirnames[i]][:,:,j]=curr_im
-'''
-#%% dilated mover + corr
+#%% minimal peak distance
+tresh_rel = 0.2
+min_dist = 5
 
-# get peaks of all files
-coord_mov_test = peak_local_max(mover_im[:,:,0],min_distance = 5,threshold_rel=0.1)
-coord_gat_test = peak_local_max(transp_im[:,:,0],min_distance = 5,threshold_rel=0.1)
-gat_test = transp_im[:,:,0]
-mov_test = mover_im[:,:,0]
+# calculate coordinates of local maxima
+mover_coord = []
+trans_coord = []
+for i in range(mover_im.shape[2]):
+    mover_coord.append(peak_local_max(mover_im[:,:,i],min_distance = min_dist,threshold_rel=tresh_rel))
+    trans_coord.append(peak_local_max(trans_im[:,:,i],min_distance = min_dist,threshold_rel=tresh_rel))
 
-plt.imshow(mov_test,cmap='gray')
-plt.plot(coord_mov_test[:,1],coord_mov_test[:,0],'r.',markersize = 2)
+#  get minimal distances between mover and transporters
+dist_gat = []    
+dist_glut1 = []
+dist_glut2 = []
+for i in range(len(mover_coord)):
+    curr_dist = distance.cdist(mover_coord[i],trans_coord[i])
+    curr_min_dist = np.zeros(curr_dist.shape[1])
+    for j in range(curr_dist.shape[1]):
+        curr_min_dist[j] = np.min(curr_dist[:,i])
+    if i < files_per_batch:
+        dist_gat.append(np.median(curr_min_dist))        
+    elif files_per_batch <= i and i < files_per_batch*2:
+        dist_glut1.append(np.median(curr_min_dist)) 
+    else:
+        dist_glut2.append(np.median(curr_min_dist))       
 
-plt.imshow(gat_test,cmap='gray')
-plt.plot(coord_gat_test[:,1],coord_gat_test[:,0],'r.',markersize = 2)
-#%% peak_local_max method
-from scipy import ndimage as ndi
+dist_gat = np.array(dist_gat)
+dist_glut1 = np.array(dist_glut1)
+dist_glut2 = np.array(dist_glut2)
 
-from skimage import img_as_float
+plt.figure('Histograms')
+plt.hist(dist_gat)
+plt.hist(dist_glut1)
+plt.hist(dist_glut2)
 
-'''
-coord_dict = {}
-for i in range(ndirs):
-    curr_name = 'coord_'+dirnames[i]
-    coord_mover_glut1 = peak_local_max(mover_glut1_cut, min_distance = 20)
-'''    
-    
-coord_mover_glut1 = peak_local_max(mover_glut1_cut, min_distance = 20)
-coord_glut1 = peak_local_max(glut1_cut, min_distance = 20)
-
-coord_mover_glut2 = peak_local_max(mover_glut2, min_distance = 20)
-coord_glut2 = peak_local_max(glut2, min_distance = 20)
-
-coord_mover_gat = peak_local_max(mover_gat, min_distance = 20)
-coord_gat = peak_local_max(gat, min_distance = 20)
-
-dist_glut1 = distance.cdist(coord_mover_glut1,coord_glut1)
-dist_glut2 = distance.cdist(coord_mover_glut2,coord_glut2)
-dist_gat = distance.cdist(coord_mover_gat,coord_gat)
-
-mover_min_dist_glut1 = np.zeros(dist_glut1.shape[0])
-for i in range(len(mover_min_dist_glut1)):
-    mover_min_dist_glut1[i] = np.min(dist_glut1[i,:])
-    
-mover_min_dist_glut2 = np.zeros(dist_glut2.shape[0])
-for i in range(len(mover_min_dist_glut2)):
-    mover_min_dist_glut2[i] = np.min(dist_glut2[i,:])
-    
-mover_min_dist_gat = np.zeros(dist_gat.shape[0])
-for i in range(len(mover_min_dist_gat)):
-    mover_min_dist_gat[i] = np.min(dist_gat[i,:])
-    
-#fig,ax = plt.subplots(1,3,sharex=False,sharey=True)
-#ax[0,0]
-plt.hist(mover_min_dist_glut1,bins=50)
-plt.show()
-#ax[1,1]
-plt.hist(mover_min_dist_glut2,bins=50)
-plt.show()
-
-#ax[2,2]
-plt.hist(mover_min_dist_gat,bins=50)
-plt.show()
-
-mover_max_im = plt.imshow(mover_glut1,cmap = 'gray')
-mover_max_im = plt.plot(coord_mover_glut1[:,1],coord_mover_glut1[:,0],'r.')
-#glut1_max_im = plt.imshow(glut1,cmap = 'gray')
-#glut1_max_im = plt.plot(coord_glut1[:,1],coord_glut1[:,0],'r.')
-#plt.savefig('D:\Studium\Master\Lab_rotations\Dresbach\mover_max_im.png')
-
-#%% statistical analysis
+plt.figure('Boxplots_swapped')
+plt.boxplot((dist_gat,dist_glut1,dist_glut2))
 
 # Normality test
-s,p_glut1 = stats.normaltest(mover_min_dist_glut1)
-s,p_glut2 = stats.normaltest(mover_min_dist_glut2)
-s,p_gat = stats.normaltest(mover_min_dist_gat)
+p_norm = np.zeros(3)
+s,p_norm[0] = stats.normaltest(dist_gat)
+s,p_norm[1] = stats.normaltest(dist_glut1)
+s,p_norm[2] = stats.normaltest(dist_glut2)
 
-# Mann-Whitney-U test
-s,p_glut1_glut2 = stats.mannwhitneyu(mover_min_dist_glut1,mover_min_dist_glut2,alternative = 'two-sided')
-s,p_glut2_gat = stats.mannwhitneyu(mover_min_dist_glut2,mover_min_dist_gat,alternative = 'two-sided')
-s,p_glut1_gat = stats.mannwhitneyu(mover_min_dist_glut1,mover_min_dist_gat,alternative = 'two-sided')
+# Mann-Whitney-U test (nonparametric significance)
+s,p_mwu_glut1_glut2 = stats.mannwhitneyu(dist_glut1,dist_glut2,alternative='less')
+s,p_mwu_glut1_gat = stats.mannwhitneyu(dist_glut1,dist_gat,alternative='less')
+s,p_mwu_gat_glut2 = stats.mannwhitneyu(dist_gat,dist_glut2,alternative='less')
 
-# Kolmo
+# t-test
+s,p_t_glut1_glut2 = stats.ttest_ind(dist_glut1,dist_glut2,equal_var=False)
+s,p_t_glut1_gat = stats.ttest_ind(dist_glut1,dist_gat,equal_var=False)
+s,p_t_gat_glut2 = stats.ttest_ind(dist_gat,dist_glut2,equal_var=False)
 
-#%% cdist method (ludicrous data size)
-from skimage.morphology import extrema
+# KS test (distribution comparison)
+D,p_glut1_glut2 = stats.ks_2samp(mover_min_dist_glut1,mover_min_dist_glut2)
+D,p_glut1_gat = stats.ks_2samp(mover_min_dist_glut1,mover_min_dist_gat)
+D,p_gat_glut2 = stats.ks_2samp(mover_min_dist_gat,mover_min_dist_glut2)
 
-mover_max = extrema.local_maxima(mover)
-glut1_max = extrema.local_maxima(glut1)
+#%% plot example images with local maxima overlaid
+im_number = 15   # vGAT: 0-17, vGluT1: 18-35, vGluT2: 36-54
 
-mover_max_coord = np.transpose(np.array(np.where(mover_max)))
-glut1_max_coord = np.transpose(np.array(np.where(glut1_max)))
+plt.figure('Raw Mover image')
+plt.imshow(mover_im[:,:,im_number],cmap = 'gray')
+plt.plot(mover_coord[im_number][:,1],mover_coord[im_number][:,0],'r.')
 
-dist = distance.cdist(mover_max_coord,glut1_max_coord)
-
-mover_min_dist = np.zeros(dist.shape[0])
-for i in range(len(mover_min_dist)):
-    mover_min_dist[i] = np.min(dist[i,:])
+plt.figure('Raw Transporter image')
+plt.imshow(trans_im[:,:,im_number],cmap = 'gray')
+plt.plot(trans_coord[im_number][:,1],trans_coord[im_number][:,0],'r.')
