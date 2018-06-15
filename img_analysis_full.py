@@ -6,14 +6,28 @@ from skimage.feature import peak_local_max
 from scipy import stats
 import os
 
-root = r'D:\Studium\Master\Lab_rotations\Dresbach\analysis\Confocal'
-#root = r'C:\Users\Hendrik\Desktop\Studium\Master\Lab_rotations\Dresbach\analysis\Confocal'
+airyscan = True
+laptop = True
 files_per_batch = 18
+
+if laptop:
+    if airyscan:
+        root = r'C:\Users\Hendrik\Desktop\Studium\Master\Lab_rotations\Dresbach\analysis\Airyscan'
+    else:
+        root = r'C:\Users\Hendrik\Desktop\Studium\Master\Lab_rotations\Dresbach\analysis\Confocal'
+else:
+    if airyscan:
+        root = r'D:\Studium\Master\Lab_rotations\Dresbach\analysis\Airyscan'    
+    else:
+        root = r'D:\Studium\Master\Lab_rotations\Dresbach\analysis\Confocal'
 
 # load mover/transporter images
 dirnames = os.listdir(root)
 ndirs = len(dirnames)
-mover_im = np.zeros((1024,1024,files_per_batch*3))
+if airyscan:
+    mover_im = np.zeros((2024,2024,files_per_batch*3))
+else:
+    mover_im = np.zeros((1024,1024,files_per_batch*3))
 trans_im = mover_im.copy()
 for i in range(ndirs):
     filenames = os.listdir(os.path.join(root,dirnames[i]))
@@ -38,7 +52,7 @@ mover_coord = []
 trans_coord = []
 for i in range(mover_im.shape[2]):
     mover_coord.append(peak_local_max(mover_im[:,:,i],min_distance = min_dist,threshold_rel=tresh_rel))
-    trans_coord.append(peak_local_max(trans_im[:,:,i],min_distance = min_dist,threshold_rel=tresh_rel))
+    trans_coord.append(peak_local_max(trans_im[:,:,17],min_distance = min_dist,threshold_rel=tresh_rel))
 
 #  get minimal distances between mover and transporters
 dist_gat = []    
@@ -59,6 +73,9 @@ for i in range(len(mover_coord)):
 dist_gat = np.array(dist_gat)
 dist_glut1 = np.array(dist_glut1)
 dist_glut2 = np.array(dist_glut2)
+
+if airyscan:
+    dist_glut1 = dist_glut1[:-2]
 
 plt.figure('Histograms mean')
 plt.hist(dist_gat)
@@ -81,14 +98,14 @@ s,p_mwu_glut1_gat = stats.mannwhitneyu(dist_glut1,dist_gat,alternative='less')
 s,p_mwu_gat_glut2 = stats.mannwhitneyu(dist_gat,dist_glut2,alternative='less')
 
 # t-test
-s,p_t_glut1_glut2 = stats.ttest_ind(dist_glut1,dist_glut2,equal_var=False)
-s,p_t_glut1_gat = stats.ttest_ind(dist_glut1,dist_gat,equal_var=False)
-s,p_t_gat_glut2 = stats.ttest_ind(dist_gat,dist_glut2,equal_var=False)
+s,p_t_glut1_glut2 = stats.ttest_ind(dist_glut1,dist_glut2,equal_var=True)
+s,p_t_glut1_gat = stats.ttest_ind(dist_glut1,dist_gat,equal_var=True)
+s,p_t_gat_glut2 = stats.ttest_ind(dist_gat,dist_glut2,equal_var=True)
 
 # KS test (distribution comparison)
-D,p_glut1_glut2 = stats.ks_2samp(mover_min_dist_glut1,mover_min_dist_glut2)
-D,p_glut1_gat = stats.ks_2samp(mover_min_dist_glut1,mover_min_dist_gat)
-D,p_gat_glut2 = stats.ks_2samp(mover_min_dist_gat,mover_min_dist_glut2)
+D,p_dist_glut1_glut2 = stats.ks_2samp(dist_glut1,dist_glut2)
+D,p_dist_glut1_gat = stats.ks_2samp(dist_glut1,dist_gat)
+D,p_dist_gat_glut2 = stats.ks_2samp(dist_gat,dist_glut2)
 
 #%% plot example images with local maxima overlaid
 im_number = 18   # vGAT: 0-17, vGluT1: 18-35, vGluT2: 36-54
