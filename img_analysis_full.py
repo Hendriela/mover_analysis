@@ -8,9 +8,9 @@ import os
 import seaborn as sns
 
 airyscan = False
-laptop = True
+laptop = False
 files_per_batch = 18
-tresh_rel = 0.1
+tresh_rel = 0.2
 min_dist = 5
 
 if laptop:
@@ -29,6 +29,7 @@ else:
         res = 1024
 
 # load mover/transporter images
+print('Load images...')
 dirnames = os.listdir(root)
 ndirs = len(dirnames)
 if airyscan:
@@ -49,15 +50,15 @@ for i in range(ndirs):
             curr_file = os.path.join(root,dirnames[i],filenames[k])
             curr_im = np.array(Image.open(curr_file))
             trans_im[:,:,int(i/2)*files_per_batch+k] = curr_im
-#%% minimal peak distance
-
+            
 # calculate coordinates of local maxima
+print('Calculate local maxima... \n')
 mover_coord = []
 trans_coord = []
 for i in range(mover_im.shape[2]):
     mover_coord.append(peak_local_max(mover_im[:,:,i],min_distance = min_dist,threshold_rel=tresh_rel))
     trans_coord.append(peak_local_max(trans_im[:,:,i],min_distance = min_dist,threshold_rel=tresh_rel))
-print('Calculated local maxima... \n')
+#%% minimal peak distance
 #  get minimal distances between mover and transporters
 dist_gat = []    
 dist_glut1 = []
@@ -68,15 +69,15 @@ for i in range(len(mover_coord)):
     for j in range(curr_dist.shape[0]):
         curr_min_dist[j] = np.min(curr_dist[j,:])
     if i < files_per_batch:
-        dist_gat.append(np.median(curr_min_dist)) 
+        dist_gat.append(np.mean(curr_min_dist)) 
         #dist_gat.append(stats.mode(curr_min_dist)[0][0])
     elif files_per_batch <= i and i < files_per_batch*2:
-        dist_glut1.append(np.median(curr_min_dist)) 
+        dist_glut1.append(np.mean(curr_min_dist)) 
         #dist_glut1.append(stats.mode(curr_min_dist)[0][0]) 
     else:
-        dist_glut2.append(np.median(curr_min_dist))
+        dist_glut2.append(np.mean(curr_min_dist))
         #dist_glut2.append(stats.mode(curr_min_dist)[0][0])
-    #print(f'Processed file {i} ({int(i/len(mover_coord))}%)...\n')
+    print(f'Processed file {i+1} ({int((i+1)/len(mover_coord)*100)}%)...')
 
 dist_gat = np.array(dist_gat)
 dist_glut1 = np.array(dist_glut1)
@@ -85,23 +86,16 @@ dist_glut2 = np.array(dist_glut2)
 if airyscan:
     dist_glut1 = dist_glut1[:-2]
 
-plt.figure('Histograms median')
-plt.hist(dist_gat)
-plt.hist(dist_glut1)
-plt.hist(dist_glut2)
+#plt.figure('Histograms mean')
+#plt.hist(dist_gat)
+#plt.hist(dist_glut1)
+#plt.hist(dist_glut2)
 
-plt.figure('Boxplots median')
+plt.figure('Boxplots mean')
 plt.boxplot((dist_gat,dist_glut1,dist_glut2),notch=True,labels=('vGAT','vGluT1','vGluT2'))
 
 #%% below certain distance ratio (interaction ratio)
 int_thresh = 5
-
-# calculate coordinates of local maxima
-mover_coord = []
-trans_coord = []
-for i in range(mover_im.shape[2]):
-    mover_coord.append(peak_local_max(mover_im[:,:,i],min_distance = min_dist,threshold_rel=tresh_rel))
-    trans_coord.append(peak_local_max(trans_im[:,:,i],min_distance = min_dist,threshold_rel=tresh_rel))
 
 #  get distances between mover and transporters
 int_gat = []    
@@ -115,16 +109,15 @@ for i in range(len(mover_coord)):
     if i < files_per_batch:
         int_gat.append(len(np.where(curr_min_dist<=int_thresh)[0])/curr_min_dist.shape[0])        
     elif files_per_batch <= i and i < files_per_batch*2:
-        int_glut1.append(len(np.where(curr_min_dist<=int_thresh)[0])/curr_min_dist.shape[0]) 
+        try: int_glut1.append(len(np.where(curr_min_dist<=int_thresh)[0])/curr_min_dist.shape[0])
+        except: pass
     else:
         int_glut2.append(len(np.where(curr_min_dist<=int_thresh)[0])/curr_min_dist.shape[0])      
-
+    print(f'Processed file {i+1} ({int((i+1)/len(mover_coord)*100)}%)...')
+    
 int_gat = np.array(int_gat)
 int_glut1 = np.array(int_glut1)
 int_glut2 = np.array(int_glut2)
-
-if airyscan:
-    int_glut1 = int_glut1[:-2]
 
 #plt.figure('Histograms')
 #plt.hist(dist_gat)
@@ -171,9 +164,9 @@ s,p_mwu_glut1_gat = stats.mannwhitneyu(dist_glut1,dist_gat,alternative='less')
 s,p_mwu_gat_glut2 = stats.mannwhitneyu(dist_gat,dist_glut2,alternative='less')
 
 # t-test
-s,p_t_glut1_glut2 = stats.ttest_ind(int_glut1,int_glut2,equal_var=True)
-s,p_t_glut1_gat = stats.ttest_ind(int_glut1,int_gat,equal_var=True)
-s,p_t_gat_glut2 = stats.ttest_ind(int_gat,int_glut2,equal_var=True)
+s,p_t_glut1_glut2 = stats.ttest_ind(dist_glut1,dist_glut2,equal_var=True)
+s,p_t_glut1_gat = stats.ttest_ind(dist_glut1,dist_gat,equal_var=True)
+s,p_t_gat_glut2 = stats.ttest_ind(dist_gat,dist_glut2,equal_var=True)
 
 # KS test (distribution comparison)
 D,p_dist_glut1_glut2 = stats.ks_2samp(dist_glut1,dist_glut2)
