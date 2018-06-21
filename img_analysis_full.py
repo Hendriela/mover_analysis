@@ -5,13 +5,16 @@ from scipy.spatial import distance
 from skimage.feature import peak_local_max
 from scipy import stats
 import os
-import seaborn as sns
+#import seaborn as sns
 
 airyscan = False
-laptop = False
+laptop = True
 files_per_batch = 18
 tresh_rel = 0.2
-min_dist = 5
+tresh_gat = 0.25
+tresh_glut1 = 0.25
+tresh_glut2 = 0.5
+min_dist = 3
 
 if laptop:
     if airyscan:
@@ -29,7 +32,7 @@ else:
         res = 1024
 
 # load mover/transporter images
-print('Load images...')
+print('\nLoad images...')
 dirnames = os.listdir(root)
 ndirs = len(dirnames)
 if airyscan:
@@ -53,29 +56,35 @@ for i in range(ndirs):
             
 # calculate coordinates of local maxima
 print('Calculate local maxima... \n')
+im_num = mover_im.shape[2]
 mover_coord = []
 trans_coord = []
-for i in range(mover_im.shape[2]):
+for i in range(im_num):
     mover_coord.append(peak_local_max(mover_im[:,:,i],min_distance = min_dist,threshold_rel=tresh_rel))
-    trans_coord.append(peak_local_max(trans_im[:,:,i],min_distance = min_dist,threshold_rel=tresh_rel))
+    if i < files_per_batch:
+        trans_coord.append(peak_local_max(trans_im[:,:,i],min_distance = min_dist,threshold_rel=tresh_gat)) 
+    elif files_per_batch <= i and i < files_per_batch*2:
+        trans_coord.append(peak_local_max(trans_im[:,:,i],min_distance = min_dist,threshold_rel=tresh_glut1)) 
+    else:
+        trans_coord.append(peak_local_max(trans_im[:,:,i],min_distance = min_dist,threshold_rel=tresh_glut2))
 #%% minimal peak distance
 #  get minimal distances between mover and transporters
 dist_gat = []    
 dist_glut1 = []
 dist_glut2 = []
-for i in range(len(mover_coord)):
-    curr_dist = distance.cdist(mover_coord[i],trans_coord[i])
+for i in range(im_num):
+    curr_dist = distance.cdist(trans_coord[i],mover_coord[i])
     curr_min_dist = np.zeros(curr_dist.shape[0])
     for j in range(curr_dist.shape[0]):
         curr_min_dist[j] = np.min(curr_dist[j,:])
     if i < files_per_batch:
-        dist_gat.append(np.mean(curr_min_dist)) 
+        dist_gat.append(np.median(curr_min_dist)) 
         #dist_gat.append(stats.mode(curr_min_dist)[0][0])
     elif files_per_batch <= i and i < files_per_batch*2:
-        dist_glut1.append(np.mean(curr_min_dist)) 
+        dist_glut1.append(np.median(curr_min_dist)) 
         #dist_glut1.append(stats.mode(curr_min_dist)[0][0]) 
     else:
-        dist_glut2.append(np.mean(curr_min_dist))
+        dist_glut2.append(np.median(curr_min_dist))
         #dist_glut2.append(stats.mode(curr_min_dist)[0][0])
     print(f'Processed file {i+1} ({int((i+1)/len(mover_coord)*100)}%)...')
 
@@ -91,8 +100,54 @@ if airyscan:
 #plt.hist(dist_glut1)
 #plt.hist(dist_glut2)
 
-plt.figure('Boxplots mean')
+plt.figure('Boxplots median')
 plt.boxplot((dist_gat,dist_glut1,dist_glut2),notch=True,labels=('vGAT','vGluT1','vGluT2'))
+ax = plt.gca()
+ax.set_ylim(0,100)
+
+#%% minimal maxima distance distributions pooled
+#  get minimal distances between mover and transporters
+dist_gat = []
+dist_glut1 = []
+dist_glut2 = []
+dist_gat = np.array(dist_gat)
+dist_glut1 = np.array(dist_glut1)
+dist_glut2 = np.array(dist_glut2)
+
+for i in range(len(mover_coord)):
+    curr_dist = distance.cdist(mover_coord[i],trans_coord[i])
+    curr_min_dist = np.zeros(curr_dist.shape[0])
+    for j in range(curr_dist.shape[0]):
+        curr_min_dist[j] = np.min(curr_dist[j,:])
+    if i < files_per_batch:
+        dist_gat = np.concatenate((dist_gat,curr_min_dist))
+    elif files_per_batch <= i and i < files_per_batch*2:
+        dist_glut1 = np.concatenate((dist_glut1,curr_min_dist))
+    else:
+        dist_glut2 = np.concatenate((dist_glut2,curr_min_dist))
+ 
+    print(f'Processed file {i+1} ({int((i+1)/len(mover_coord)*100)}%)...')
+
+if airyscan:
+    dist_glut1 = dist_glut1[:-2]
+
+# combined histo
+plt.figure('Histograms Mover-Transporter 2 norm')
+plt.hist(dist_gat, bins=100,label='vGAT',histtype='step',linewidth=2, cumulative=False, density=True)
+plt.hist(dist_glut1,bins=100,label='vGluT1',histtype='step',linewidth=2, cumulative=False, density=True)
+plt.hist(dist_glut2,bins=100,label='vGluT2',histtype='step',linewidth=2, cumulative=False, density=True)
+plt.legend()
+ax = plt.gca()
+ax.set_xlim(0,200)
+
+# cumulative distribution function
+dist_gat_sort = np.sort(dist_gat)
+dist_gat_freq = np.array(range(len(dist_gat)))/float(len(dist_gat))
+
+plt.figure('Boxplots median')
+plt.boxplot((dist_gat,dist_glut1,dist_glut2),notch=True,labels=('vGAT','vGluT1','vGluT2'))
+ax = plt.gca()
+ax.set_ylim(0,100)
 
 #%% below certain distance ratio (interaction ratio)
 int_thresh = 5
@@ -176,16 +231,16 @@ D,p_dist_gat_glut2 = stats.ks_2samp(dist_gat,dist_glut2)
 #%% plot example images with local maxima overlaid
 im_number = 40   # vGAT: 0-17, vGluT1: 18-35, vGluT2: 36-54
 
-plt.figure('Raw Mover image')
+plt.figure('Raw Mover image min dist 3 0.2 ohne')
 plt.imshow(mover_im[:,:,im_number],cmap = 'gray')
 plt.plot(mover_coord[im_number][:,1],mover_coord[im_number][:,0],'r.')
 
-plt.figure('Raw Transporter image')
+plt.figure('Raw Transporter image min dist 3 0.5 ohne')
 plt.imshow(trans_im[:,:,im_number],cmap = 'gray')
 plt.plot(trans_coord[im_number][:,1],trans_coord[im_number][:,0],'r.')
 
 #%% plot min_dist distribution for one image
-image_num = 0   # vGAT: 0-17, vGluT1: 18-35, vGluT2: 36-54
+image_num = 1   # vGAT: 0-17, vGluT1: 18-35, vGluT2: 36-54
 
 curr_dist = distance.cdist(mover_coord[image_num],trans_coord[image_num])
 gat_min_dist = np.zeros(curr_dist.shape[0])
@@ -201,11 +256,13 @@ for j in range(curr_dist.shape[0]):
         glut2_min_dist[j] = np.min(curr_dist[j,:])
         
 # combined histo
-plt.figure('Histograms Mover-Transporter')
-plt.hist(gat_min_dist, bins=50,label='vGAT',histtype='step',linewidth=2)
-plt.hist(glut1_min_dist,bins=50,label='vGluT1',histtype='step',linewidth=2)
-plt.hist(glut2_min_dist,bins=50,label='vGluT2',histtype='step',linewidth=2)
+plt.figure('Histograms Mover-Transporter 2 cum')
+plt.hist(gat_min_dist, bins=100,label='vGAT',histtype='step',linewidth=2, cumulative=True)
+plt.hist(glut1_min_dist,bins=100,label='vGluT1',histtype='step',linewidth=2, cumulative=True)
+plt.hist(glut2_min_dist,bins=100,label='vGluT2',histtype='step',linewidth=2, cumulative=True)
 plt.legend()
+ax = plt.gca()
+ax.set_xlim(0,200)
 
 #single histos
 plt.figure('Histograms Mover-vGAT')
