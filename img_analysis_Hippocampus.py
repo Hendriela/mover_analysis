@@ -7,13 +7,10 @@ from scipy import stats,ndimage
 import os
 #import seaborn as sns
 
-airyscan = False
-laptop = False
 files_per_batch = 18
 tresh_mov = 0.2
 tresh_gat = 0.25
 tresh_glut1 = 0.25
-tresh_glut2 = 0.5
 min_dist = 3
 
 def get_centers(peaks):
@@ -42,21 +39,53 @@ def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, 
     if iteration == total: 
         print()  
 
-if laptop:
-    if airyscan:
-        root = r'C:\Users\Hendrik\Desktop\Studium\Master\Lab_rotations\Dresbach\analysis\Airyscan'
-        res = 2024
-    else:
-        root = r'C:\Users\Hendrik\Desktop\Studium\Master\Lab_rotations\Dresbach\analysis\Confocal'
-        res = 1024
-else:
-    if airyscan:
-        root = r'D:\Studium\Master\Lab_rotations\Dresbach\analysis\Airyscan'
-        res = 2024
-    else:
-        root = r'D:\Studium\Master\Lab_rotations\Dresbach\analysis\Confocal'
-        res = 1024
+root = 'D:\Studium\Mover Cerebellum Paper\Hippocampus'
+mice = os.listdir(root)
+slices = ['Slice 1','Slice 2','Slice 3']
+hemi = ['left','right']
+region = 'CA3'
+layer = 'SLu'
+mover_name = 'SLu_AF647-T3_ORG.tif'
+glut1_name = 'SLu_AF488-T2_ORG.tif'
+gat_name = 'SLu_Cy3-T1_ORG.tif'
+dist_glut = []
+dist_gat = []
+i = 1
+for mouse in mice:
+    for curr_slice in slices:
+        for side in hemi:
+            # load Mover, vGluT1 and vGAT images
+            curr_path = os.path.join(root,mouse,curr_slice,side,region,layer)
+            curr_mov_im = np.array(Image.open(os.path.join(curr_path,mover_name)))
+            curr_glut_im = np.array(Image.open(os.path.join(curr_path,glut1_name)))
+            curr_gat_im = np.array(Image.open(os.path.join(curr_path,gat_name)))
+            
+            # get their peaks
+            curr_peaks = peak_local_max(curr_mov_im,min_distance = min_dist,threshold_rel=tresh_mov,indices=False) # get local maxima
+            curr_centers = get_centers(curr_peaks)
+            mover_coord = curr_centers
+            curr_peaks = peak_local_max(curr_glut_im,min_distance = min_dist,threshold_rel=tresh_mov,indices=False) # get local maxima
+            curr_centers = get_centers(curr_peaks)
+            glut1_coord = curr_centers            
+            curr_peaks = peak_local_max(curr_gat_im,min_distance = min_dist,threshold_rel=tresh_mov,indices=False) # get local maxima
+            curr_centers = get_centers(curr_peaks)
+            gat_coord = curr_centers
+            
+            # get their distances
+            curr_dist = distance.cdist(glut1_coord,mover_coord)    
+            curr_min_dist = np.zeros(curr_dist.shape[0])
+            for j in range(curr_dist.shape[0]):
+                curr_min_dist[j] = np.min(curr_dist[j,:])
+            dist_glut.append(curr_min_dist)
+            curr_dist = distance.cdist(gat_coord,mover_coord)    
+            curr_min_dist = np.zeros(curr_dist.shape[0])
+            for j in range(curr_dist.shape[0]):
+                curr_min_dist[j] = np.min(curr_dist[j,:])
+            dist_gat.append(curr_min_dist)
 
+            printProgressBar(i,18)
+            i += 1
+            
 # load mover/transporter images
 print('\nLoad images...')
 dirnames = os.listdir(root)
@@ -142,7 +171,7 @@ if airyscan:
 #plt.hist(dist_glut2)
 
 plt.figure('Boxplots median')
-plt.boxplot((dist_gat,dist_glut1,dist_glut2),notch=True,labels=('vGAT','vGluT1','vGluT2'))
+plt.boxplot((dist_gat,dist_glut1),notch=True,labels=('vGAT','vGluT1'))
 ax = plt.gca()
 ax.set_ylim(0,25)
 
