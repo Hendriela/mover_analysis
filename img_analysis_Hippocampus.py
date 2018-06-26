@@ -8,10 +8,10 @@ import os
 #import seaborn as sns
 
 files_per_batch = 18
-tresh_mov = 0.2
+tresh_mov = 0.3
 tresh_gat = 0.25
-tresh_glut1 = 0.25
-min_dist = 3
+tresh_glut1 = 0.35
+min_dist = 5
 
 def get_centers(peaks):
     labels, nr_objects = ndimage.label(peaks) # get all distinct features
@@ -85,85 +85,20 @@ for mouse in mice:
 
             printProgressBar(i,18)
             i += 1
-            
-# load mover/transporter images
-print('\nLoad images...')
-dirnames = os.listdir(root)
-ndirs = len(dirnames)
-if airyscan:
-    mover_im = np.zeros((res,res,files_per_batch*3))
-else:
-    mover_im = np.zeros((res,res,files_per_batch*3))
-trans_im = mover_im.copy()
-for i in range(ndirs):
-    filenames = os.listdir(os.path.join(root,dirnames[i]))
-    nfiles = len(filenames)
-    if i%2==0:      # load mover images
-        for j in range(nfiles):
-            curr_file = os.path.join(root,dirnames[i],filenames[j])
-            curr_im = np.array(Image.open(curr_file))
-            mover_im[:,:,int(i/2)*files_per_batch+j] = curr_im
-    else:
-        for k in range(nfiles):
-            curr_file = os.path.join(root,dirnames[i],filenames[k])
-            curr_im = np.array(Image.open(curr_file))
-            trans_im[:,:,int(i/2)*files_per_batch+k] = curr_im
-            
-# calculate coordinates of local maxima
-print('Calculate local maxima...')
-nimgs = mover_im.shape[2]
-printProgressBar(0,nimgs)
-mover_coord = []
-trans_coord = []
-for i in range(nimgs):
-    curr_peaks = peak_local_max(mover_im[:,:,i],min_distance = min_dist,threshold_rel=tresh_mov,indices=False) # get local maxima
-    curr_centers = get_centers(curr_peaks)
-    mover_coord.append(curr_centers)
-    if i < files_per_batch:
-        curr_peaks = peak_local_max(trans_im[:,:,i],min_distance = min_dist,threshold_rel=tresh_gat,indices=False) # get local maxima
-        curr_centers = get_centers(curr_peaks)
-        trans_coord.append(curr_centers) 
-    elif files_per_batch <= i and i < files_per_batch*2:
-        curr_peaks = peak_local_max(trans_im[:,:,i],min_distance = min_dist,threshold_rel=tresh_glut1,indices=False) # get local maxima
-        curr_centers = get_centers(curr_peaks)
-        trans_coord.append(curr_centers) 
-    else:
-        curr_peaks = peak_local_max(trans_im[:,:,i],min_distance = min_dist,threshold_rel=tresh_glut2,indices=False) # get local maxima
-        curr_centers = get_centers(curr_peaks)
-        trans_coord.append(curr_centers)
-    printProgressBar(i+1,nimgs)
-#%% minimal peak distance
-#  get minimal distances between mover and transporters
-dist_gat = []    
-dist_glut1 = []
-dist_glut2 = []
-print('Calculate distances...')
-for i in range(nimgs):
-    curr_dist = distance.cdist(trans_coord[i],mover_coord[i])    
-    curr_min_dist = np.zeros(curr_dist.shape[0])
-    for j in range(curr_dist.shape[0]):
-        curr_min_dist[j] = np.min(curr_dist[j,:])
-    if i < files_per_batch:
-        dist_gat.append(np.mean(curr_min_dist)) 
-        #dist_gat.append(stats.mode(curr_min_dist)[0][0])
-    elif files_per_batch <= i and i < files_per_batch*2:
-        dist_glut1.append(np.mean(curr_min_dist)) 
-        #dist_glut1.append(stats.mode(curr_min_dist)[0][0]) 
-    else:
-        dist_glut2.append(np.mean(curr_min_dist))
-        #dist_glut2.append(stats.mode(curr_min_dist)[0][0])
-    printProgressBar(i+1,nimgs)
-
-
-dist_gat = np.array(dist_gat)
-dist_glut1 = np.array(dist_glut1)
-dist_glut2 = np.array(dist_glut2)
 
 # delete outlier
-dist_glut1 = np.delete(dist_glut1,(8,17))
+del dist_gat[16], dist_glut[16]
+#%% minimal peak distance
+#  get minimal distances between mover and transporters
+min_dist_gat = []    
+min_dist_glut1 = []
+print('Calculate distances...')
+for i in range(len(dist_gat)):
+    min_dist_gat.append(np.median(dist_gat[i])) 
+    min_dist_glut1.append(np.median(dist_glut[i]))
 
-if airyscan:
-    dist_glut1 = dist_glut1[:-2]
+min_dist_gat = np.array(min_dist_gat)
+min_dist_glut1 = np.array(min_dist_glut1)
 
 #plt.figure('Histograms mean')
 #plt.hist(dist_gat)
@@ -171,34 +106,16 @@ if airyscan:
 #plt.hist(dist_glut2)
 
 plt.figure('Boxplots median')
-plt.boxplot((dist_gat,dist_glut1),notch=True,labels=('vGAT','vGluT1'))
+plt.boxplot((min_dist_gat,min_dist_glut1),notch=True,labels=('vGAT','vGluT1'))
 ax = plt.gca()
 ax.set_ylim(0,25)
 
 #%% minimal maxima distances - cumulative distribution
 #  get minimal distances between mover and transporters
-dist_gat = []
-dist_glut1 = []
-dist_glut2 = []
-dist_gat = np.array(dist_gat)
-dist_glut1 = np.array(dist_glut1)
-dist_glut2 = np.array(dist_glut2)
-print('Calculate distance distributions...')
-for i in range(len(mover_coord)):
-    curr_dist = distance.cdist(trans_coord[i],mover_coord[i])
-    curr_min_dist = np.zeros(curr_dist.shape[0])
-    for j in range(curr_dist.shape[0]):
-        curr_min_dist[j] = np.min(curr_dist[j,:])
-    if i < files_per_batch:
-        dist_gat = np.concatenate((dist_gat,curr_min_dist))
-    elif files_per_batch <= i and i < files_per_batch*2:
-        dist_glut1 = np.concatenate((dist_glut1,curr_min_dist))
-    else:
-        dist_glut2 = np.concatenate((dist_glut2,curr_min_dist)) 
-    printProgressBar(i+1,nimgs)
 
-if airyscan:
-    dist_glut1 = dist_glut1[:-2]
+cum_dist_gat = np.concatenate(dist_gat)
+cum_dist_glut = np.concatenate(dist_glut)
+
 '''
 # combined histo
 plt.figure('Combined Histograms')
@@ -208,18 +125,15 @@ plt.hist(dist_glut2,bins=50,label='vGluT2',histtype='step',linewidth=2, cumulati
 plt.legend()
 ax = plt.gca()
 ax.set_xlim(0,60)
-
+'''
 # cumulative distribution function
-dist_gat_sort = np.sort(dist_gat)
-dist_gat_freq = np.array(range(len(dist_gat)))/float(len(dist_gat))
-dist_glut1_sort = np.sort(dist_glut1)
-dist_glut1_freq = np.array(range(len(dist_glut1)))/float(len(dist_glut1))
-dist_glut2_sort = np.sort(dist_glut2)
-dist_glut2_freq = np.array(range(len(dist_glut2)))/float(len(dist_glut2))
+dist_gat_sort = np.sort(cum_dist_gat)
+dist_gat_freq = np.array(range(len(cum_dist_gat)))/float(len(cum_dist_gat))
+dist_glut1_sort = np.sort(cum_dist_glut)
+dist_glut1_freq = np.array(range(len(cum_dist_glut)))/float(len(cum_dist_glut))
 plt.figure('CDF')
 plt.plot(dist_gat_sort,dist_gat_freq,label='vGAT')
 plt.plot(dist_glut1_sort,dist_glut1_freq,label='vGluT1')
-plt.plot(dist_glut2_sort,dist_glut2_freq,label='vGluT2')
 plt.legend()
 #ax = plt.gca()
 #ax.set_xlim(0,100)
@@ -275,7 +189,7 @@ ax.set_xticklabels(labels)
 plt.show()
 #plt.figure ('Barplots')
 #plt.bar((1,2,3),(np.mean(int_gat),np.mean(int_glut1),np.mean(int_glut2)))
-'''
+
 #%% Statistical tests
 # Normality test
 p_norm = np.zeros(3)
@@ -299,15 +213,18 @@ D,p_dist_glut1_gat = stats.ks_2samp(dist_glut1,dist_gat)
 D,p_dist_gat_glut2 = stats.ks_2samp(dist_gat,dist_glut2)
 
 #%% plot example images with local maxima overlaid
-im_number = 5   # vGAT: 0-17, vGluT1: 18-35, vGluT2: 36-54
 
-plt.figure('Raw Mover image min dist 3 0.2 ohne')
-plt.imshow(mover_im[:,:,im_number],cmap = 'gray')
-plt.plot(mover_coord[im_number][:,1],mover_coord[im_number][:,0],'r.')
+plt.figure('Raw Mover image')
+plt.imshow(curr_mov_im,cmap = 'gray')
+plt.plot(mover_coord[:,1],mover_coord[:,0],'r.')
 
-plt.figure('Raw Transporter image min dist 3 0.5 ohne')
-plt.imshow(trans_im[:,:,im_number],cmap = 'gray')
-plt.plot(trans_coord[im_number][:,1],trans_coord[im_number][:,0],'r.')
+plt.figure('Raw vGluT1 image')
+plt.imshow(curr_glut_im,cmap = 'gray')
+plt.plot(glut1_coord[:,1],glut1_coord[:,0],'r.')
+
+plt.figure('Raw vGAT image')
+plt.imshow(curr_gat_im,cmap = 'gray')
+plt.plot(gat_coord[:,1],gat_coord[:,0],'r.')
 
 #%% plot all images
 im_count=0
