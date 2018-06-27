@@ -10,7 +10,7 @@ import os
 files_per_batch = 18
 tresh_mov = 0.3
 tresh_gat = 0.25
-tresh_glut1 = 0.35
+tresh_glut1 = 0.3
 min_dist = 5
 
 def get_centers(peaks):
@@ -39,15 +39,16 @@ def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, 
     if iteration == total: 
         print()  
 
-root = 'D:\Studium\Mover Cerebellum Paper\Hippocampus'
+#root = 'D:\Studium\Mover Cerebellum Paper\Hippocampus'
+root = 'D:\Studium\Mover Cerebellum Paper\Amygdala'
 mice = os.listdir(root)
 slices = ['Slice 1','Slice 2','Slice 3']
 hemi = ['left','right']
-region = 'CA3'
-layer = 'SLu'
-mover_name = 'SLu_AF647-T3_ORG.tif'
-glut1_name = 'SLu_AF488-T2_ORG.tif'
-gat_name = 'SLu_Cy3-T1_ORG.tif'
+#region = 'CA3'
+layer = 'MeP'
+mover_name = str(layer+'_AF647-T3_ORG.tif')
+glut1_name = str(layer+'_AF488-T2_ORG.tif')
+gat_name = str(layer+'_Cy3-T1_ORG.tif')
 dist_glut = []
 dist_gat = []
 i = 1
@@ -55,38 +56,40 @@ for mouse in mice:
     for curr_slice in slices:
         for side in hemi:
             # load Mover, vGluT1 and vGAT images
-            curr_path = os.path.join(root,mouse,curr_slice,side,region,layer)
-            curr_mov_im = np.array(Image.open(os.path.join(curr_path,mover_name)))
-            curr_glut_im = np.array(Image.open(os.path.join(curr_path,glut1_name)))
-            curr_gat_im = np.array(Image.open(os.path.join(curr_path,gat_name)))
-            
-            # get their peaks
-            curr_peaks = peak_local_max(curr_mov_im,min_distance = min_dist,threshold_rel=tresh_mov,indices=False) # get local maxima
-            curr_centers = get_centers(curr_peaks)
-            mover_coord = curr_centers
-            curr_peaks = peak_local_max(curr_glut_im,min_distance = min_dist,threshold_rel=tresh_mov,indices=False) # get local maxima
-            curr_centers = get_centers(curr_peaks)
-            glut1_coord = curr_centers            
-            curr_peaks = peak_local_max(curr_gat_im,min_distance = min_dist,threshold_rel=tresh_mov,indices=False) # get local maxima
-            curr_centers = get_centers(curr_peaks)
-            gat_coord = curr_centers
-            
-            # get their distances
-            curr_dist = distance.cdist(glut1_coord,mover_coord)    
-            curr_min_dist = np.zeros(curr_dist.shape[0])
-            for j in range(curr_dist.shape[0]):
-                curr_min_dist[j] = np.min(curr_dist[j,:])
-            dist_glut.append(curr_min_dist)
-            curr_dist = distance.cdist(gat_coord,mover_coord)    
-            curr_min_dist = np.zeros(curr_dist.shape[0])
-            for j in range(curr_dist.shape[0]):
-                curr_min_dist[j] = np.min(curr_dist[j,:])
-            dist_gat.append(curr_min_dist)
-
+            curr_path = os.path.join(root,mouse,curr_slice,side,layer)
+            if os.path.isdir(curr_path):                
+                curr_mov_im = np.array(Image.open(os.path.join(curr_path,mover_name)))
+                curr_glut_im = np.array(Image.open(os.path.join(curr_path,glut1_name)))
+                curr_gat_im = np.array(Image.open(os.path.join(curr_path,gat_name)))
+                
+                # get their peaks
+                curr_peaks = peak_local_max(curr_mov_im,min_distance = min_dist,threshold_rel=tresh_mov,indices=False) # get local maxima
+                curr_centers = get_centers(curr_peaks)
+                mover_coord = curr_centers
+                curr_peaks = peak_local_max(curr_glut_im,min_distance = min_dist,threshold_rel=tresh_glut1,indices=False) # get local maxima
+                curr_centers = get_centers(curr_peaks)
+                glut1_coord = curr_centers            
+                curr_peaks = peak_local_max(curr_gat_im,min_distance = min_dist,threshold_rel=tresh_gat,indices=False) # get local maxima
+                curr_centers = get_centers(curr_peaks)
+                gat_coord = curr_centers
+                
+                # get their distances
+                curr_dist = distance.cdist(glut1_coord,mover_coord)    
+                curr_min_dist = np.zeros(curr_dist.shape[0])
+                for j in range(curr_dist.shape[0]):
+                    curr_min_dist[j] = np.min(curr_dist[j,:])
+                dist_glut.append(curr_min_dist)
+                curr_dist = distance.cdist(gat_coord,mover_coord)    
+                curr_min_dist = np.zeros(curr_dist.shape[0])
+                for j in range(curr_dist.shape[0]):
+                    curr_min_dist[j] = np.min(curr_dist[j,:])
+                dist_gat.append(curr_min_dist)
+            else:
+                print(f'   No images of layer {layer} in directory {curr_path}!')
             printProgressBar(i,18)
             i += 1
 
-# delete outlier
+#%% delete outlier
 del dist_gat[16], dist_glut[16]
 #%% minimal peak distance
 #  get minimal distances between mover and transporters
@@ -108,7 +111,7 @@ min_dist_glut1 = np.array(min_dist_glut1)
 plt.figure('Boxplots median')
 plt.boxplot((min_dist_gat,min_dist_glut1),notch=True,labels=('vGAT','vGluT1'))
 ax = plt.gca()
-ax.set_ylim(0,25)
+#ax.set_ylim(0,10)
 
 #%% minimal maxima distances - cumulative distribution
 #  get minimal distances between mover and transporters
@@ -135,32 +138,22 @@ plt.figure('CDF')
 plt.plot(dist_gat_sort,dist_gat_freq,label='vGAT')
 plt.plot(dist_glut1_sort,dist_glut1_freq,label='vGluT1')
 plt.legend()
-#ax = plt.gca()
-#ax.set_xlim(0,100)
+ax = plt.gca()
+ax.set_xlim(0,100)
 #%% below certain distance ratio (interaction ratio)
 int_thresh = 5
 
 #  get distances between mover and transporters
 int_gat = []    
 int_glut1 = []
-int_glut2 = []
-for i in range(len(mover_coord)):
-    curr_dist = distance.cdist(trans_coord[i],mover_coord[i])
-    curr_min_dist = np.zeros(curr_dist.shape[0])
-    for j in range(curr_dist.shape[0]):
-        curr_min_dist[j] = np.min(curr_dist[j,:])
-    if i < files_per_batch:
-        int_gat.append(len(np.where(curr_min_dist<=int_thresh)[0])/curr_min_dist.shape[0])        
-    elif files_per_batch <= i and i < files_per_batch*2:
-        try: int_glut1.append(len(np.where(curr_min_dist<=int_thresh)[0])/curr_min_dist.shape[0])
-        except: pass
-    else:
-        int_glut2.append(len(np.where(curr_min_dist<=int_thresh)[0])/curr_min_dist.shape[0])      
-    printProgressBar(i+1,nimgs)
+
+for i in range(len(dist_gat)):
+    int_gat.append(len(np.where(dist_gat[i]<=int_thresh)[0])/dist_gat[i].shape[0])        
+    int_glut1.append(len(np.where(dist_glut[i]<=int_thresh)[0])/dist_glut[i].shape[0])   
+    printProgressBar(i+1,len(dist_gat))
     
 int_gat = np.array(int_gat)
 int_glut1 = np.array(int_glut1)
-int_glut2 = np.array(int_glut2)
 
 #plt.figure('Histograms')
 #plt.hist(dist_gat)
@@ -168,27 +161,9 @@ int_glut2 = np.array(int_glut2)
 #plt.hist(dist_glut2)
 
 plt.figure('Boxplots')
-plt.boxplot((int_gat,int_glut1,int_glut2),notch=True,labels=('vGAT','vGluT1','vGluT2'))
+plt.boxplot((int_gat,int_glut1),notch=True,labels=('vGAT','vGluT1'))
 ax = plt.gca()
 ax.set_ylim(0,1)
-'''
-plt.figure('Stripplots')
-sns.stripplot(x=1,y=int_gat)
-data = np.concatenate((int_gat[:,np.newaxis],int_glut1[:,np.newaxis],int_glut2[:,np.newaxis]),axis=1)
-labels = ("vGAT",'vGluT1','vGluT2')
-width=0.2
-fig, ax = plt.subplots()
-for i, l in enumerate(labels):
-    x = np.ones(data.shape[0])*i + (np.random.rand(data.shape[0])*width-width/2.)
-    ax.scatter(x, data[:,i], s=25)
-    mean = data[:,i].mean()
-    ax.plot([i-width/2., i+width/2.],[mean,mean], color="k")
-ax.set_xticks(range(len(labels)))
-ax.set_ylim(0,1)
-ax.set_xticklabels(labels)
-plt.show()
-#plt.figure ('Barplots')
-#plt.bar((1,2,3),(np.mean(int_gat),np.mean(int_glut1),np.mean(int_glut2)))
 
 #%% Statistical tests
 # Normality test
@@ -218,7 +193,7 @@ plt.figure('Raw Mover image')
 plt.imshow(curr_mov_im,cmap = 'gray')
 plt.plot(mover_coord[:,1],mover_coord[:,0],'r.')
 
-plt.figure('Raw vGluT1 image')
+plt.figure('Raw vGluT1 image 0.35')
 plt.imshow(curr_glut_im,cmap = 'gray')
 plt.plot(glut1_coord[:,1],glut1_coord[:,0],'r.')
 
