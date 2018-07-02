@@ -103,6 +103,7 @@ for i in range(nimgs):
         curr_centers = get_centers(curr_peaks)
         trans_coord.append(curr_centers)
     printProgressBar(i+1,nimgs)
+    
 #%% minimal peak distance
 #  get minimal distances between mover and transporters
 dist_gat = []    
@@ -115,13 +116,13 @@ for i in range(nimgs):
     for j in range(curr_dist.shape[0]):
         curr_min_dist[j] = np.min(curr_dist[j,:])
     if i < files_per_batch:
-        dist_gat.append(np.mean(curr_min_dist)) 
+        dist_gat.append(np.median(curr_min_dist)) 
         #dist_gat.append(stats.mode(curr_min_dist)[0][0])
     elif files_per_batch <= i and i < files_per_batch*2:
-        dist_glut1.append(np.mean(curr_min_dist)) 
+        dist_glut1.append(np.median(curr_min_dist)) 
         #dist_glut1.append(stats.mode(curr_min_dist)[0][0]) 
     else:
-        dist_glut2.append(np.mean(curr_min_dist))
+        dist_glut2.append(np.median(curr_min_dist))
         #dist_glut2.append(stats.mode(curr_min_dist)[0][0])
     printProgressBar(i+1,nimgs)
 
@@ -170,6 +171,8 @@ for i in range(len(mover_coord)):
 
 if airyscan:
     dist_glut1 = dist_glut1[:-2]
+    
+dist_glut1 = np.delete(dist_glut1,(8,17))
 '''
 # combined histo
 plt.figure('Combined Histograms')
@@ -179,7 +182,7 @@ plt.hist(dist_glut2,bins=50,label='vGluT2',histtype='step',linewidth=2, cumulati
 plt.legend()
 ax = plt.gca()
 ax.set_xlim(0,60)
-
+'''
 # cumulative distribution function
 dist_gat_sort = np.sort(dist_gat)
 dist_gat_freq = np.array(range(len(dist_gat)))/float(len(dist_gat))
@@ -218,6 +221,8 @@ for i in range(len(mover_coord)):
 int_gat = np.array(int_gat)
 int_glut1 = np.array(int_glut1)
 int_glut2 = np.array(int_glut2)
+
+int_glut1 = np.delete(int_glut1,(8,17))
 
 #plt.figure('Histograms')
 #plt.hist(dist_gat)
